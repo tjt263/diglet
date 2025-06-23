@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import argparse
 import dns.resolver
 
@@ -24,9 +25,14 @@ def parse_args():
     parser.add_argument(
         "-t", "--types",
         default="A",
-        help="Comma-separated list of DNS record types to fetch (e.g., A,MX,TXT)",
-     )
-
+        help="Comma-separated list of DNS record types to fetch (e.g., A,MX,TXT)"
+    )
+    parser.add_argument(
+        "-w", "--workers",
+        type=int,
+        default=100,
+        help="Number of concurrent workers (default: 100)"
+    )
     return parser.parse_args()
 
 # ---------- File loading ----------
@@ -46,13 +52,12 @@ def fetch_dns(domain, resolver_ip, record_type='A', retries=2):
             if attempt == retries:
                 return []
 
+# ---------- Fetchers ----------
 def fetch_a(domain, resolver_ip):           return fetch_dns(domain, resolver_ip, 'A')
 def fetch_aaaa(domain, resolver_ip):        return fetch_dns(domain, resolver_ip, 'AAAA')
 def fetch_afsdb(domain, resolver_ip):       return fetch_dns(domain, resolver_ip, 'AFSDB')
 def fetch_apl(domain, resolver_ip):         return fetch_dns(domain, resolver_ip, 'APL')
 def fetch_caa(domain, resolver_ip):         return fetch_dns(domain, resolver_ip, 'CAA')
-def fetch_cdnskey(domain, resolver_ip):     return fetch_dns(domain, resolver_ip, 'CDNSKEY')
-def fetch_cdnskey(domain, resolver_ip):     return fetch_dns(domain, resolver_ip, 'CDNSKEY')
 def fetch_cdnskey(domain, resolver_ip):     return fetch_dns(domain, resolver_ip, 'CDNSKEY')
 def fetch_cds(domain, resolver_ip):         return fetch_dns(domain, resolver_ip, 'CDS')
 def fetch_cert(domain, resolver_ip):        return fetch_dns(domain, resolver_ip, 'CERT')
@@ -96,19 +101,30 @@ def get_fetchers():
 
 FETCHERS = get_fetchers()
 
-# ---------- Resolver ----------
-def resolve_records(domains, resolvers, record_types):
-    for i, domain in enumerate(domains):
-        resolver_ip = resolvers[i % len(resolvers)]
-        record = {
-            "domain": domain,
-            "resolver": resolver_ip,
-        }
-        for rtype in record_types:
-            fetch_func = FETCHERS.get(rtype)
-            if fetch_func:
-                record[rtype] = fetch_func(domain, resolver_ip)
-        yield record
+# ---------- Resolver (Parallelized) ----------
+def resolve_records(domains, resolvers, record_types, max_workers=100):
+    def task(domain, resolver_ip, rtype):
+        fetch_func = FETCHERS.get(rtype)
+        if fetch_func:
+            return domain, resolver_ip, rtype, fetch_func(domain, resolver_ip)
+        return domain, resolver_ip, rtype, []
+
+    jobs = []
+    results = {}
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        for i, domain in enumerate(domains):
+            resolver_ip = resolvers[i % len(resolvers)]
+            for rtype in record_types:
+                jobs.append(executor.submit(task, domain, resolver_ip, rtype))
+
+        for future in as_completed(jobs):
+            domain, resolver, rtype, result = future.result()
+            if domain not in results:
+                results[domain] = {"domain": domain, "resolver": resolver}
+            results[domain][rtype] = result
+
+    return list(results.values())
 
 # ---------- Printing ----------
 def print_results(results, record_types):
@@ -125,7 +141,7 @@ def main():
     domains = load_list(args.domains)
     resolvers = load_list(args.resolvers)
     record_types = [rtype.strip().upper() for rtype in args.types.split(",")]
-    results = resolve_records(domains, resolvers, record_types)
+    results = resolve_records(domains, resolvers, record_types, max_workers=args.workers)
     if not args.quiet:
         print_results(results, record_types)
 
