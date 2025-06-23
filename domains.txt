@@ -10,3 +10,15 @@ yahoo.com
 whatsapp.com
 netflix.com
 reddit.com
+linkedin.com
+ebay.com
+bing.com
+office.com
+twitter.com
+cloudflare.com
+tiktok.com
+paypal.com
+zoom.us
+imdb.com
+stackexchange.com
+openai.com
