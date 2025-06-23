@@ -45,7 +45,6 @@ def fetch_txt(domain, resolver_ip): return fetch_dns(domain, resolver_ip, 'TXT')
 def fetch_mx(domain, resolver_ip):  return fetch_dns(domain, resolver_ip, 'MX')
 
 def resolve_records(domains, resolvers):
-    results = []
     for i, domain in enumerate(domains):
         resolver_ip = resolvers[i % len(resolvers)]
         record = {
@@ -55,8 +54,7 @@ def resolve_records(domains, resolvers):
             "TXT": fetch_txt(domain, resolver_ip),
             "MX": fetch_mx(domain, resolver_ip),
         }
-        results.append(record)
-    return results
+        yield record
 
 # ---------- Printing ----------
 def print_results(results):
