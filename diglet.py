@@ -16,6 +16,11 @@ def parse_args():
         default="resolvers.txt",
         help="Path to resolvers file (default: resolvers.txt)"
     )
+    parser.add_argument(
+        "-q", "--quiet",
+        action="store_true",
+        help="Suppress output to stdout"
+)
     return parser.parse_args()
 
 # ---------- File loading ----------
@@ -39,19 +44,37 @@ def fetch_a(domain, resolver_ip):   return fetch_dns(domain, resolver_ip, 'A')
 def fetch_txt(domain, resolver_ip): return fetch_dns(domain, resolver_ip, 'TXT')
 def fetch_mx(domain, resolver_ip):  return fetch_dns(domain, resolver_ip, 'MX')
 
+def resolve_records(domains, resolvers):
+    results = []
+    for i, domain in enumerate(domains):
+        resolver_ip = resolvers[i % len(resolvers)]
+        record = {
+            "domain": domain,
+            "resolver": resolver_ip,
+            "A": fetch_a(domain, resolver_ip),
+            "TXT": fetch_txt(domain, resolver_ip),
+            "MX": fetch_mx(domain, resolver_ip),
+        }
+        results.append(record)
+    return results
+
+# ---------- Printing ----------
+def print_results(results):
+    for r in results:
+        print(f"\n{r['domain']}")
+        print(f"Resolver: {r['resolver']}")
+        print(f"  A   : {r['A']}")
+        print(f"  TXT : {r['TXT']}")
+        print(f"  MX  : {r['MX']}")
+
 # ---------- Main execution ----------
 def main():
     args = parse_args()
     domains = load_list(args.domains)
     resolvers = load_list(args.resolvers)
-
-    for i, domain in enumerate(domains):
-        resolver_ip = resolvers[i % len(resolvers)]
-        print(f"\n{domain}")
-        print(f"Resolver: {resolver_ip}")
-        print(f"  A   : {fetch_a(domain, resolver_ip)}")
-        print(f"  TXT : {fetch_txt(domain, resolver_ip)}")
-        print(f"  MX  : {fetch_mx(domain, resolver_ip)}")
+    results = resolve_records(domains, resolvers)
+    if not args.quiet:
+        print_results(results)
 
 # ---------- Entry point ----------
 if __name__ == "__main__":
