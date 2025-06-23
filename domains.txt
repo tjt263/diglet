@@ -1,0 +1,12 @@
+google.com
+youtube.com
+facebook.com
+amazon.com
+apple.com
+microsoft.com
+instagram.com
+duckduckgo.com
+yahoo.com
+whatsapp.com
+netflix.com
+reddit.com
