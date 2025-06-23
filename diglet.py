@@ -2,37 +2,20 @@
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import argparse
-import dns.resolver
+import dns.name
+import dns.message
+import dns.query
+import dns.rdatatype
+import dns.exception
 
 # ---------- Argument parsing ----------
 def parse_args():
     parser = argparse.ArgumentParser(description="Diglet: Simple parallel DNS querying with resolver rotation")
-    parser.add_argument(
-        "-d", "--domains",
-        default="domains.txt",
-        help="Path to domains file (default: domains.txt)"
-    )
-    parser.add_argument(
-        "-r", "--resolvers",
-        default="resolvers.txt",
-        help="Path to resolvers file (default: resolvers.txt)"
-    )
-    parser.add_argument(
-        "-q", "--quiet",
-        action="store_true",
-        help="Suppress output to stdout"
-    )
-    parser.add_argument(
-        "-t", "--types",
-        default="A",
-        help="Comma-separated list of DNS record types to fetch (e.g., A,MX,TXT)"
-    )
-    parser.add_argument(
-        "-w", "--workers",
-        type=int,
-        default=100,
-        help="Number of concurrent workers (default: 100)"
-    )
+    parser.add_argument("-d", "--domains", default="domains.txt", help="Path to domains file (default: domains.txt)")
+    parser.add_argument("-r", "--resolvers", default="resolvers.txt", help="Path to resolvers file (default: resolvers.txt)")
+    parser.add_argument("-q", "--quiet", action="store_true", help="Suppress output to stdout")
+    parser.add_argument("-t", "--types", default="A", help="Comma-separated list of DNS record types to fetch (e.g., A,MX,TXT)")
+    parser.add_argument("-w", "--workers", type=int, default=100, help="Number of concurrent workers (default: 100)")
     return parser.parse_args()
 
 # ---------- File loading ----------
@@ -42,12 +25,16 @@ def load_list(path):
 
 # ---------- DNS fetching ----------
 def fetch_dns(domain, resolver_ip, record_type='A', retries=2):
+    qname = dns.name.from_text(domain)
+    qtype = dns.rdatatype.from_text(record_type)
+
     for attempt in range(retries + 1):
-        resolver = dns.resolver.Resolver()
-        resolver.nameservers = [resolver_ip]
         try:
-            answers = resolver.resolve(domain, record_type, raise_on_no_answer=False, lifetime=5.0)
-            return [r.to_text() for r in answers] if answers.rrset else []
+            request = dns.message.make_query(qname, qtype)
+            response = dns.query.udp(request, resolver_ip, timeout=5)
+            if response.answer:
+                return [r.to_text() for rrset in response.answer for r in rrset]
+            return []
         except Exception:
             if attempt == retries:
                 return []
