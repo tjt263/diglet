@@ -20,7 +20,13 @@ def parse_args():
         "-q", "--quiet",
         action="store_true",
         help="Suppress output to stdout"
-)
+    )
+    parser.add_argument(
+        "-t", "--types",
+        default="A",
+        help="Comma-separated list of DNS record types to fetch (e.g., A,MX,TXT)",
+     )
+
     return parser.parse_args()
 
 # ---------- File loading ----------
@@ -44,35 +50,39 @@ def fetch_a(domain, resolver_ip):   return fetch_dns(domain, resolver_ip, 'A')
 def fetch_txt(domain, resolver_ip): return fetch_dns(domain, resolver_ip, 'TXT')
 def fetch_mx(domain, resolver_ip):  return fetch_dns(domain, resolver_ip, 'MX')
 
-def resolve_records(domains, resolvers):
+def resolve_records(domains, resolvers, record_types):
     for i, domain in enumerate(domains):
         resolver_ip = resolvers[i % len(resolvers)]
         record = {
             "domain": domain,
             "resolver": resolver_ip,
-            "A": fetch_a(domain, resolver_ip),
-            "TXT": fetch_txt(domain, resolver_ip),
-            "MX": fetch_mx(domain, resolver_ip),
         }
+        if "A" in record_types:
+            record["A"] = fetch_a(domain, resolver_ip)
+        if "TXT" in record_types:
+            record["TXT"] = fetch_txt(domain, resolver_ip)
+        if "MX" in record_types:
+            record["MX"] = fetch_mx(domain, resolver_ip)
         yield record
 
 # ---------- Printing ----------
-def print_results(results):
+def print_results(results, record_types):
     for r in results:
         print(f"\n{r['domain']}")
         print(f"Resolver: {r['resolver']}")
-        print(f"  A   : {r['A']}")
-        print(f"  TXT : {r['TXT']}")
-        print(f"  MX  : {r['MX']}")
+        for rtype in record_types:
+            if rtype in r:
+                print(f"  {rtype:<4}: {r[rtype]}")
 
 # ---------- Main execution ----------
 def main():
     args = parse_args()
     domains = load_list(args.domains)
     resolvers = load_list(args.resolvers)
-    results = resolve_records(domains, resolvers)
+    record_types = [rtype.strip().upper() for rtype in args.types.split(",")]
+    results = resolve_records(domains, resolvers, record_types)
     if not args.quiet:
-        print_results(results)
+        print_results(results, record_types)
 
 # ---------- Entry point ----------
 if __name__ == "__main__":
