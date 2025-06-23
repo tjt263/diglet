@@ -5,12 +5,17 @@ import dns.resolver
 
 # ---------- Argument parsing ----------
 def parse_args():
-    parser = argparse.ArgumentParser(
-        prog="diglet",
-        description="Query DNS records (A, TXT, MX) for a list of domains using custom DNS resolvers."
+    parser = argparse.ArgumentParser(description="Diglet: Simple parallel DNS querying with resolver rotation")
+    parser.add_argument(
+        "-d", "--domains",
+        default="domains.txt",
+        help="Path to domains file (default: domains.txt)"
     )
-    parser.add_argument("domains", help="Path to domains.txt")
-    parser.add_argument("resolvers", help="Path to resolvers.txt")
+    parser.add_argument(
+        "-r", "--resolvers",
+        default="resolvers.txt",
+        help="Path to resolvers file (default: resolvers.txt)"
+    )
     return parser.parse_args()
 
 # ---------- File loading ----------
@@ -43,6 +48,7 @@ def main():
     for i, domain in enumerate(domains):
         resolver_ip = resolvers[i % len(resolvers)]
         print(f"\n{domain}")
+        print(f"Resolver: {resolver_ip}")
         print(f"  A   : {fetch_a(domain, resolver_ip)}")
         print(f"  TXT : {fetch_txt(domain, resolver_ip)}")
         print(f"  MX  : {fetch_mx(domain, resolver_ip)}")
