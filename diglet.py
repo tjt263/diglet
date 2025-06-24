@@ -2,6 +2,7 @@
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import argparse
+import csv
 import dns.name
 import dns.message
 import dns.query
@@ -16,6 +17,7 @@ def parse_args():
     parser.add_argument("-q", "--quiet", action="store_true", help="Suppress output to stdout")
     parser.add_argument("-t", "--types", default="A", help="Comma-separated list of DNS record types to fetch (e.g., A,MX,TXT)")
     parser.add_argument("-w", "--workers", type=int, default=100, help="Number of concurrent workers (default: 100)")
+    parser.add_argument("-o", "--output", choices=["csv"], help="Output format (csv)")
     return parser.parse_args()
 
 # ---------- File loading ----------
@@ -122,6 +124,17 @@ def print_results(results, record_types):
             if rtype in r:
                 print(f"  {rtype:<4}: {r[rtype]}")
 
+# ---------- CSV Output ----------
+def write_csv(results, record_types, filename="diglet_output.csv"):
+    with open(filename, "w", newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(["domain"] + record_types)  # Exclude resolver here
+        for r in results:
+            row = [r["domain"]]
+            for rtype in record_types:
+                row.append("; ".join(r.get(rtype, [])))
+            writer.writerow(row)
+
 # ---------- Main execution ----------
 def main():
     args = parse_args()
@@ -129,7 +142,10 @@ def main():
     resolvers = load_list(args.resolvers)
     record_types = [rtype.strip().upper() for rtype in args.types.split(",")]
     results = resolve_records(domains, resolvers, record_types, max_workers=args.workers)
-    if not args.quiet:
+
+    if args.output == "csv":
+        write_csv(results, record_types)
+    elif not args.quiet:
         print_results(results, record_types)
 
 # ---------- Entry point ----------
